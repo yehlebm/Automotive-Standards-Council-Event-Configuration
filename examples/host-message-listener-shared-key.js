@@ -1,9 +1,10 @@
 /*
- * Automotive Standards Council (ASC) host-page example (shared-key validation).
+ * Automotive Standards Council Event (ASC Event) host-page example (shared-key
+ * validation).
  *
  * Copy this script onto the dealership website when validating iframe messages
  * using a shared secret. Update ALLOWED_INTERNAL_KEYS with the keys that ASC
- * partners are expected to send.
+ * Event partners are expected to send.
  */
 (function () {
   "use strict";
@@ -23,7 +24,7 @@
         const parsed = JSON.parse(value);
         return Array.isArray(parsed) ? parsed : [];
       } catch (error) {
-        console.warn("ASC measurement ID parsing failed", error);
+        console.warn("ASC Event measurement ID parsing failed", error);
         return [];
       }
     }
@@ -41,7 +42,7 @@
   }
 
   /**
-   * Handles messages posted by the ASC iframe.
+   * Handles messages posted by the ASC Event iframe.
    * @param {MessageEvent} event
    */
   function manageAscEvent(event) {
@@ -51,7 +52,7 @@
     try {
       payload = typeof data === "string" ? JSON.parse(data) : data;
     } catch (error) {
-      console.warn("ASC iframe payload could not be parsed", error);
+      console.warn("ASC Event iframe payload could not be parsed", error);
       return;
     }
 

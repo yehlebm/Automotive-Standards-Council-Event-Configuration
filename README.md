@@ -1,14 +1,15 @@
 # Automotive-Standards-Council-Event-Configuration
 Configuration Examples of Automotive Standards Council Events for Automotive Dealers
 
-## ASC iframe integration overview
+## ASC Event iframe integration overview
 
-Automotive Standards Council (ASC) partners frequently embed their widgets or
-applications as iframes inside a dealership website. In this setup the ASC
-plugin cannot call `gtag()` directly because the Google Analytics 4 (GA4) tag
-lives on the host page. Instead, the iframe should **post a message** to its
-parent window, and the host page is responsible for listening for that message
-and forwarding it to GA4, Google Tag Manager (GTM), and the ASC data layer.
+Automotive Standards Council Event (ASC Event) partners frequently embed their
+widgets or applications as iframes inside a dealership website. In this setup
+the ASC Event plugin cannot call `gtag()` directly because the Google Analytics
+4 (GA4) tag lives on the host page. Instead, the iframe should **post a**
+**message** to its parent window, and the host page is responsible for
+listening for that message and forwarding it to GA4, Google Tag Manager (GTM),
+and the ASC Event data layer.
 
 The examples below walk through:
 
@@ -55,11 +56,11 @@ To inline the logic instead of loading the shared file:
     const serializedMeasurementIds = JSON.stringify(measurementIds);
 
     const message = {
-      event: "asc_form_submission", // ASC event name
+      event: "asc_form_submission", // ASC Event name
       eventModel: {
         page_type: "service",
         send_to: serializedMeasurementIds,
-        // ...other ASCDimensions
+        // ...otherAscEventDimensions
       }
     };
 
@@ -89,12 +90,12 @@ Inline version:
     const serializedMeasurementIds = JSON.stringify(measurementIds);
 
     const message = {
-      event: "asc_form_submission", // ASC event name
+      event: "asc_form_submission", // ASC Event name
       internalKey: INTERNAL_KEY,
       eventModel: {
         page_type: "service",
         send_to: serializedMeasurementIds,
-        // ...other ASCDimensions
+        // ...otherAscEventDimensions
       }
     };
 
@@ -118,7 +119,8 @@ Inline version:
 
 On the dealership website, add a listener that validates the message source,
 merges measurement IDs if desired, and then forwards the event to GA4, GTM, and
-the ASC data layer. Choose the listener that matches your validation strategy.
+the ASC Event data layer. Choose the listener that matches your validation
+strategy.
 
 ### Option A: Host-origin validation
 
@@ -143,7 +145,7 @@ Inline version:
           const parsed = JSON.parse(value);
           return Array.isArray(parsed) ? parsed : [];
         } catch (error) {
-          console.warn("ASC measurement ID parsing failed", error);
+          console.warn("ASC Event measurement ID parsing failed", error);
           return [];
         }
       }
@@ -163,7 +165,7 @@ Inline version:
       try {
         payload = typeof data === "string" ? JSON.parse(data) : data;
       } catch (error) {
-        console.warn("ASC iframe payload could not be parsed", error);
+        console.warn("ASC Event iframe payload could not be parsed", error);
         return;
       }
 
@@ -225,7 +227,7 @@ Inline version:
   (function () {
     "use strict";
 
-    const ALLOWED_INTERNAL_KEYS = ["123abc"]; // replace with shared secrets from ASC partners
+    const ALLOWED_INTERNAL_KEYS = ["123abc"]; // replace with shared secrets from ASC Event partners
 
     function parseMeasurementIds(value) {
       if (!value) return [];
@@ -235,7 +237,7 @@ Inline version:
           const parsed = JSON.parse(value);
           return Array.isArray(parsed) ? parsed : [];
         } catch (error) {
-          console.warn("ASC measurement ID parsing failed", error);
+          console.warn("ASC Event measurement ID parsing failed", error);
           return [];
         }
       }
@@ -253,7 +255,7 @@ Inline version:
       try {
         payload = typeof data === "string" ? JSON.parse(data) : data;
       } catch (error) {
-        console.warn("ASC iframe payload could not be parsed", error);
+        console.warn("ASC Event iframe payload could not be parsed", error);
         return;
       }
 
@@ -315,7 +317,7 @@ Inline version:
   data.
 - Only push to GA4 and GTM after the message has been validated and the payload
   has been normalized.
-- Prefixing the GTM event name (for example `dl_`) keeps ASC events distinct
+- Prefixing the GTM event name (for example `dl_`) keeps ASC Events distinct
   from native GTM events.
 
 ## 3. Example end-to-end flow
@@ -329,5 +331,5 @@ Inline version:
    `window.asc_data_layer` to enable additional tracking and partner tooling.
 
 By following this pattern, iframe-based partners can rely on the host website
-to deliver Automotive Standards Council events to all required analytics
-destinations without directly embedding GA4 or GTM inside the iframe.
+to deliver Automotive Standards Council Events (ASC Events) to all required
+analytics destinations without directly embedding GA4 or GTM inside the iframe.

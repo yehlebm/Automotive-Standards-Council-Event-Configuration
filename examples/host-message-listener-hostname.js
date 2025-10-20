@@ -1,9 +1,10 @@
 /*
- * Automotive Standards Council (ASC) host-page example (host-origin validation).
+ * Automotive Standards Council Event (ASC Event) host-page example (host-origin
+ * validation).
  *
  * Copy this script onto the dealership website when validating iframe messages
- * by the iframe's origin. Update ALLOWED_IFRAME_ORIGINS with the ASC partner
- * domains that should be trusted.
+ * by the iframe's origin. Update ALLOWED_IFRAME_ORIGINS with the ASC Event
+ * partner domains that should be trusted.
  */
 (function () {
   "use strict";
@@ -23,7 +24,7 @@
         const parsed = JSON.parse(value);
         return Array.isArray(parsed) ? parsed : [];
       } catch (error) {
-        console.warn("ASC measurement ID parsing failed", error);
+        console.warn("ASC Event measurement ID parsing failed", error);
         return [];
       }
     }
@@ -41,7 +42,7 @@
   }
 
   /**
-   * Handles messages posted by the ASC iframe.
+   * Handles messages posted by the ASC Event iframe.
    * @param {MessageEvent} event
    */
   function manageAscEvent(event) {
@@ -53,7 +54,7 @@
     try {
       payload = typeof data === "string" ? JSON.parse(data) : data;
     } catch (error) {
-      console.warn("ASC iframe payload could not be parsed", error);
+      console.warn("ASC Event iframe payload could not be parsed", error);
       return;
     }
 
