@@ -1,18 +1,18 @@
 /*
- * Automotive Standards Council (ASC) iframe example.
+ * Automotive Standards Council (ASC) iframe example (host-origin validation).
  *
- * Copy this script into your iframe-based plugin to post ASC events to the
- * parent page. Update MEASUREMENT_IDS, INTERNAL_KEY, and the example
- * sendAscEvent call to match your implementation.
+ * Copy this script into your iframe-based plugin when the host page will
+ * validate incoming messages using the iframe's origin. Update
+ * HOST_PAGE_ORIGIN and MEASUREMENT_IDS to match your implementation.
  */
 (function () {
   "use strict";
 
+  // Replace with the origin of the dealership website embedding the iframe.
+  const HOST_PAGE_ORIGIN = "https://dealer.example.com"; // Example value
+
   // Replace with the GA4 measurement IDs used by the iframe experience.
   const MEASUREMENT_IDS = ["G-123", "G-456"]; // Example values
-
-  // Optional shared key so the host page can verify messages originated here.
-  const INTERNAL_KEY = "123abc";
 
   const SERIALIZED_MEASUREMENT_IDS = JSON.stringify(MEASUREMENT_IDS);
 
@@ -24,7 +24,6 @@
   function sendAscEvent(eventName, eventModel) {
     const payload = {
       event: eventName,
-      internalKey: INTERNAL_KEY,
       eventModel: {
         ...eventModel,
         // Include measurement IDs unless the caller already provided them.
@@ -35,7 +34,7 @@
       }
     };
 
-    window.parent.postMessage(JSON.stringify(payload), "*");
+    window.parent.postMessage(JSON.stringify(payload), HOST_PAGE_ORIGIN);
   }
 
   // Example usage: dispatch when a form submission completes inside the iframe.

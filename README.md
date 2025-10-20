@@ -19,33 +19,78 @@ The examples below walk through:
 
 Ready-to-use scripts that mirror the snippets below are stored in the
 [`examples/`](examples/) directory so developers can copy and include them
-directly.
+directly. Choose the validation strategy that matches your integration:
+
+- **Host-origin validation**
+  - [`examples/iframe-post-message-hostname.js`](examples/iframe-post-message-hostname.js)
+  - [`examples/host-message-listener-hostname.js`](examples/host-message-listener-hostname.js)
+- **Shared-key validation**
+  - [`examples/iframe-post-message-shared-key.js`](examples/iframe-post-message-shared-key.js)
+  - [`examples/host-message-listener-shared-key.js`](examples/host-message-listener-shared-key.js)
 
 ## 1. Prepare the event inside the iframe
 
 Within the iframe, construct the event payload using the same structure that
 `gtag()` and the various data layers expect. Include the GA4 measurement IDs in
-`send_to` when available so they can be forwarded by the host page. A
-copy/paste-ready script lives at [`examples/iframe-post-message.js`](examples/iframe-post-message.js).
+`send_to` when available so they can be forwarded by the host page.
+
+### Option A: Host-origin validation
+
+Use this pattern when the host page restricts messages to specific iframe
+origins.
 
 ```html
-<script src="/path/to/examples/iframe-post-message.js"></script>
+<script src="/path/to/examples/iframe-post-message-hostname.js"></script>
 ```
 
-If you prefer to inline the logic instead of loading the shared file, the
-following snippet shows the same approach:
+To inline the logic instead of loading the shared file:
 
 ```html
 <script>
   (function () {
     "use strict";
 
+    const HOST_PAGE_ORIGIN = "https://dealer.example.com"; // replace with host site origin
     const measurementIds = ["G-123", "G-456"]; // example values
     const serializedMeasurementIds = JSON.stringify(measurementIds);
 
     const message = {
       event: "asc_form_submission", // ASC event name
-      internalKey: "123abc", // optional iframe-specific validation key
+      eventModel: {
+        page_type: "service",
+        send_to: serializedMeasurementIds,
+        // ...other ASCDimensions
+      }
+    };
+
+    window.parent.postMessage(JSON.stringify(message), HOST_PAGE_ORIGIN);
+  })();
+</script>
+```
+
+### Option B: Shared-key validation
+
+Use this pattern when the host page validates iframe messages using a shared
+secret.
+
+```html
+<script src="/path/to/examples/iframe-post-message-shared-key.js"></script>
+```
+
+Inline version:
+
+```html
+<script>
+  (function () {
+    "use strict";
+
+    const INTERNAL_KEY = "123abc"; // replace with your shared secret
+    const measurementIds = ["G-123", "G-456"]; // example values
+    const serializedMeasurementIds = JSON.stringify(measurementIds);
+
+    const message = {
+      event: "asc_form_submission", // ASC event name
+      internalKey: INTERNAL_KEY,
       eventModel: {
         page_type: "service",
         send_to: serializedMeasurementIds,
@@ -62,7 +107,9 @@ following snippet shows the same approach:
 
 - The payload must be serialized (for example with `JSON.stringify`) because
   many hosts expect a string when processing `postMessage` data.
-- Include a shared `internalKey` if the host and iframe agree to use one for
+- For host-origin validation, the second argument of `postMessage` should be the
+  dealership's origin. For shared-key validation, set it to `"*"` so the message
+  reaches the host regardless of domain, and rely on the shared key for
   validation.
 - If the iframe does not manage measurement IDs, leave `send_to` undefined and
   the host can supply its own value.
@@ -71,22 +118,22 @@ following snippet shows the same approach:
 
 On the dealership website, add a listener that validates the message source,
 merges measurement IDs if desired, and then forwards the event to GA4, GTM, and
-the ASC data layer. The ready-made listener is available at
-[`examples/host-message-listener.js`](examples/host-message-listener.js).
+the ASC data layer. Choose the listener that matches your validation strategy.
+
+### Option A: Host-origin validation
 
 ```html
-<script src="/path/to/examples/host-message-listener.js"></script>
+<script src="/path/to/examples/host-message-listener-hostname.js"></script>
 ```
 
-To inline the logic, copy the snippet below:
+Inline version:
 
 ```html
 <script>
   (function () {
     "use strict";
 
-    const ASC_IFRAME_HOST = "https://iframe.example.com"; // replace with your iframe origin
-    const INTERNAL_KEY = "123abc"; // optional shared secret
+    const ALLOWED_IFRAME_ORIGINS = ["https://iframe.example.com"]; // replace with trusted iframe origins
 
     function parseMeasurementIds(value) {
       if (!value) return [];
@@ -110,7 +157,7 @@ To inline the logic, copy the snippet below:
     function manageAscEvent(event) {
       const { data, origin } = event;
 
-      if (origin !== ASC_IFRAME_HOST) return;
+      if (!ALLOWED_IFRAME_ORIGINS.includes(origin)) return;
 
       let payload;
       try {
@@ -120,7 +167,99 @@ To inline the logic, copy the snippet below:
         return;
       }
 
-      if (INTERNAL_KEY && payload.internalKey !== INTERNAL_KEY) return;
+      const eventName = payload && payload.event;
+      if (!eventName) return;
+
+      const eventData = {
+        ...((payload && payload.eventModel) || {})
+      };
+
+      window.asc_data_layer = window.asc_data_layer || [];
+      const hostMeasurementIds = parseMeasurementIds(
+        window.asc_data_layer.measurement_ids
+      );
+      const iframeMeasurementIds = parseMeasurementIds(eventData.send_to);
+      const combinedMeasurementIds = mergeMeasurementIds(
+        hostMeasurementIds,
+        iframeMeasurementIds
+      );
+
+      if (combinedMeasurementIds.length > 0) {
+        eventData.send_to = JSON.stringify(combinedMeasurementIds);
+        window.asc_data_layer.measurement_ids = combinedMeasurementIds;
+      } else {
+        delete eventData.send_to;
+      }
+
+      if (typeof window.gtag === "function") {
+        window.gtag("event", eventName, eventData);
+      }
+
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: `dl_${eventName}`,
+        eventModel: eventData
+      });
+
+      window.asc_data_layer.push({
+        event: eventName,
+        ...eventData
+      });
+    }
+
+    window.addEventListener("message", manageAscEvent);
+  })();
+</script>
+```
+
+### Option B: Shared-key validation
+
+```html
+<script src="/path/to/examples/host-message-listener-shared-key.js"></script>
+```
+
+Inline version:
+
+```html
+<script>
+  (function () {
+    "use strict";
+
+    const ALLOWED_INTERNAL_KEYS = ["123abc"]; // replace with shared secrets from ASC partners
+
+    function parseMeasurementIds(value) {
+      if (!value) return [];
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string") {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+          console.warn("ASC measurement ID parsing failed", error);
+          return [];
+        }
+      }
+      return [];
+    }
+
+    function mergeMeasurementIds(hostIds, iframeIds) {
+      return [...new Set([...hostIds, ...iframeIds])];
+    }
+
+    function manageAscEvent(event) {
+      const { data } = event;
+
+      let payload;
+      try {
+        payload = typeof data === "string" ? JSON.parse(data) : data;
+      } catch (error) {
+        console.warn("ASC iframe payload could not be parsed", error);
+        return;
+      }
+
+      if (!payload || !ALLOWED_INTERNAL_KEYS.includes(payload.internalKey)) {
+        return;
+      }
 
       const eventName = payload.event;
       if (!eventName) return;
@@ -169,10 +308,11 @@ To inline the logic, copy the snippet below:
 
 ### Host implementation tips
 
-- Use the `origin` value from the message event to ensure the message came from
-  a trusted iframe domain.
+- Use the `origin` value from the message event when validating by hostname, or
+  a shared `internalKey` for the shared-secret approach. You can also combine
+  both strategies if desired.
 - Wrap `JSON.parse` in a `try/catch` if you need to guard against malformed
-  data. (Omitted here for brevity.)
+  data.
 - Only push to GA4 and GTM after the message has been validated and the payload
   has been normalized.
 - Prefixing the GTM event name (for example `dl_`) keeps ASC events distinct
@@ -181,8 +321,8 @@ To inline the logic, copy the snippet below:
 ## 3. Example end-to-end flow
 
 1. The iframe posts the serialized event payload to the parent window.
-2. The host page receives the message, validates the origin (and optional
-   `internalKey`), and parses the payload.
+2. The host page receives the message, validates it using either the iframe
+   origin or shared key, and parses the payload.
 3. Measurement IDs from the host and iframe are merged and serialized.
 4. The host forwards the event to GA4 (`gtag("event", ...)`).
 5. The host pushes the normalized event to both `window.dataLayer` and
