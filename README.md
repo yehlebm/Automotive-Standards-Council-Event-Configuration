@@ -1,5 +1,8 @@
 # Automotive-Standards-Council-Event-Configuration
-Configuration Examples of Automotive Standards Council Events for Automotive Dealers
+Community examples of ASC Events for automotive dealers
+
+> **Note:** This repository is a community-maintained resource and is not
+> affiliated with or endorsed by any official ASC Event program.
 
 ## ASC Event iframe integration overview
 
