@@ -44,7 +44,9 @@ directly. Choose the validation strategy that matches your integration:
 
 Within the iframe, construct the event payload using the same structure that
 `gtag()` and the various data layers expect. Include the GA4 measurement IDs in
-`send_to` when available so they can be forwarded by the host page.
+`send_to` when available so they can be forwarded by the host page, and
+serialize them so the host can batch its `gtag()` calls below the 20 calls per
+second guidance.
 
 ### Option A: Host-origin validation
 
@@ -64,7 +66,9 @@ To inline the logic instead of loading the shared file:
 
     const HOST_PAGE_ORIGIN = "https://dealer.example.com"; // replace with host site origin
     const measurementIds = ["G-123", "G-456"]; // example values
-    const serializedMeasurementIds = JSON.stringify(measurementIds);
+    const serializedMeasurementIds = JSON.stringify(
+      measurementIds
+    ); // Serialize to batch gtag() calls and stay under GA4's 20 calls/second guidance
 
     const message = {
       event: "asc_form_submission", // ASC Event name
@@ -76,6 +80,8 @@ To inline the logic instead of loading the shared file:
     };
 
     window.parent.postMessage(JSON.stringify(message), HOST_PAGE_ORIGIN);
+    // If you cannot maintain a host-origin list, coordinate with the dealer to
+    // use the shared-key variant and post with "*" instead.
   })();
 </script>
 ```
@@ -98,7 +104,9 @@ Inline version:
 
     const INTERNAL_KEY = "123abc"; // replace with your shared secret
     const measurementIds = ["G-123", "G-456"]; // example values
-    const serializedMeasurementIds = JSON.stringify(measurementIds);
+    const serializedMeasurementIds = JSON.stringify(
+      measurementIds
+    ); // Serialize to batch gtag() calls and stay under GA4's 20 calls/second guidance
 
     const message = {
       event: "asc_form_submission", // ASC Event name
@@ -110,7 +118,7 @@ Inline version:
       }
     };
 
-    window.parent.postMessage(JSON.stringify(message), "*");
+    window.parent.postMessage(JSON.stringify(message), "*"); // Shared key gates access
   })();
 </script>
 ```
@@ -118,11 +126,13 @@ Inline version:
 ### Notes for iframe developers
 
 - The payload must be serialized (for example with `JSON.stringify`) because
-  many hosts expect a string when processing `postMessage` data.
+  many hosts expect a string when processing `postMessage` data. Serializing the
+  `send_to` measurement IDs also lets the host batch GA4 calls, keeping the
+  integration under the 20 calls/second guidance.
 - For host-origin validation, the second argument of `postMessage` should be the
-  dealership's origin. For shared-key validation, set it to `"*"` so the message
-  reaches the host regardless of domain, and rely on the shared key for
-  validation.
+  dealership's origin. If the iframe provider cannot reliably manage host
+  origins, coordinate with the dealer to switch to the shared-key flow so you
+  can send the message with `"*"` and rely on the shared key for validation.
 - If the iframe does not manage measurement IDs, leave `send_to` undefined and
   the host can supply its own value.
 
@@ -130,8 +140,16 @@ Inline version:
 
 On the dealership website, add a listener that validates the message source,
 merges measurement IDs if desired, and then forwards the event to GA4, GTM, and
-the ASC Event data layer. Choose the listener that matches your validation
-strategy.
+the ASC Event data layer. Logging into `window.asc_datalayer` is part of the ASC
+Event specification, so keep that array in sync with each message you process.
+Choose the listener that matches your validation strategy.
+
+Each listener also pushes both a generic `dl_asc` event and an
+event-specific `dl_<eventName>` into `window.dataLayer` so that Google Tag
+Manager and other tag-management systems can subscribe to whichever pattern
+their workspace prefers. The measurement IDs the listener merges represent GA4
+properties that already live on the dealership website and want to consume ASC
+Events automatically.
 
 ### Option A: Host-origin validation
 
@@ -187,19 +205,19 @@ Inline version:
         ...((payload && payload.eventModel) || {})
       };
 
-      window.asc_data_layer = window.asc_data_layer || [];
+      window.asc_datalayer = window.asc_datalayer || [];
       const hostMeasurementIds = parseMeasurementIds(
-        window.asc_data_layer.measurement_ids
+        window.asc_datalayer.measurement_ids
       );
       const iframeMeasurementIds = parseMeasurementIds(eventData.send_to);
       const combinedMeasurementIds = mergeMeasurementIds(
         hostMeasurementIds,
         iframeMeasurementIds
-      );
+      ); // Helps GA4 properties already on the site that want ASC Events
 
       if (combinedMeasurementIds.length > 0) {
         eventData.send_to = JSON.stringify(combinedMeasurementIds);
-        window.asc_data_layer.measurement_ids = combinedMeasurementIds;
+        window.asc_datalayer.measurement_ids = combinedMeasurementIds;
       } else {
         delete eventData.send_to;
       }
@@ -210,11 +228,16 @@ Inline version:
 
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({
+        event: "dl_asc",
+        ascEventName: eventName,
+        eventModel: eventData
+      });
+      window.dataLayer.push({
         event: `dl_${eventName}`,
         eventModel: eventData
       });
 
-      window.asc_data_layer.push({
+      window.asc_datalayer.push({
         event: eventName,
         ...eventData
       });
@@ -281,19 +304,19 @@ Inline version:
         ...(payload.eventModel || {})
       };
 
-      window.asc_data_layer = window.asc_data_layer || [];
+      window.asc_datalayer = window.asc_datalayer || [];
       const hostMeasurementIds = parseMeasurementIds(
-        window.asc_data_layer.measurement_ids
+        window.asc_datalayer.measurement_ids
       );
       const iframeMeasurementIds = parseMeasurementIds(eventData.send_to);
       const combinedMeasurementIds = mergeMeasurementIds(
         hostMeasurementIds,
         iframeMeasurementIds
-      );
+      ); // Helps GA4 properties already on the site that want ASC Events
 
       if (combinedMeasurementIds.length > 0) {
         eventData.send_to = JSON.stringify(combinedMeasurementIds);
-        window.asc_data_layer.measurement_ids = combinedMeasurementIds;
+        window.asc_datalayer.measurement_ids = combinedMeasurementIds;
       } else {
         delete eventData.send_to;
       }
@@ -304,11 +327,16 @@ Inline version:
 
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({
+        event: "dl_asc",
+        ascEventName: eventName,
+        eventModel: eventData
+      });
+      window.dataLayer.push({
         event: `dl_${eventName}`,
         eventModel: eventData
       });
 
-      window.asc_data_layer.push({
+      window.asc_datalayer.push({
         event: eventName,
         ...eventData
       });
@@ -326,10 +354,15 @@ Inline version:
   both strategies if desired.
 - Wrap `JSON.parse` in a `try/catch` if you need to guard against malformed
   data.
-- Only push to GA4 and GTM after the message has been validated and the payload
-  has been normalized.
-- Prefixing the GTM event name (for example `dl_`) keeps ASC Events distinct
-  from native GTM events.
+- Merging host and iframe measurement IDs is an attempt to automate tracking as
+  soon as your tool is installed—any GA4 properties already configured on the
+  dealership site and expecting ASC Events will receive the events without extra
+  dealer work.
+- Push both the generic `dl_asc` event (with the ASC Event name in a field) and
+  the event-specific `dl_<eventName>` to `window.dataLayer` so GTM and other tag
+  management systems can hook into whichever format their workspaces expect.
+- Only push to GA4 and the data layers after the message has been validated and
+  the payload has been normalized.
 
 ## 3. Example end-to-end flow
 
@@ -339,7 +372,7 @@ Inline version:
 3. Measurement IDs from the host and iframe are merged and serialized.
 4. The host forwards the event to GA4 (`gtag("event", ...)`).
 5. The host pushes the normalized event to both `window.dataLayer` and
-   `window.asc_data_layer` to enable additional tracking and partner tooling.
+   `window.asc_datalayer` to enable additional tracking and partner tooling.
 
 By following this pattern, iframe-based partners can rely on the host website
 to deliver Automotive Standards Council Events (ASC Events) to all required

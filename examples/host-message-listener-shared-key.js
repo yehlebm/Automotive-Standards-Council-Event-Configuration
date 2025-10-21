@@ -4,7 +4,8 @@
  *
  * Copy this script onto the dealership website when validating iframe messages
  * using a shared secret. Update ALLOWED_INTERNAL_KEYS with the keys that ASC
- * Event partners are expected to send.
+ * Event partners are expected to send. Logging the normalized payload into
+ * window.asc_datalayer is part of the ASC Event specification.
  */
 (function () {
   "use strict";
@@ -67,19 +68,19 @@
       ...(payload.eventModel || {})
     };
 
-    window.asc_data_layer = window.asc_data_layer || [];
+    window.asc_datalayer = window.asc_datalayer || [];
     const hostMeasurementIds = parseMeasurementIds(
-      window.asc_data_layer.measurement_ids
+      window.asc_datalayer.measurement_ids
     );
     const iframeMeasurementIds = parseMeasurementIds(eventData.send_to);
     const combinedMeasurementIds = mergeMeasurementIds(
       hostMeasurementIds,
       iframeMeasurementIds
-    );
+    ); // Helps GA4 properties already on the site that want ASC Events
 
     if (combinedMeasurementIds.length > 0) {
       eventData.send_to = JSON.stringify(combinedMeasurementIds);
-      window.asc_data_layer.measurement_ids = combinedMeasurementIds;
+      window.asc_datalayer.measurement_ids = combinedMeasurementIds;
     } else {
       delete eventData.send_to;
     }
@@ -90,11 +91,16 @@
 
     window.dataLayer = window.dataLayer || [];
     window.dataLayer.push({
+      event: "dl_asc",
+      ascEventName: eventName,
+      eventModel: eventData
+    });
+    window.dataLayer.push({
       event: `dl_${eventName}`,
       eventModel: eventData
     });
 
-    window.asc_data_layer.push({
+    window.asc_datalayer.push({
       event: eventName,
       ...eventData
     });

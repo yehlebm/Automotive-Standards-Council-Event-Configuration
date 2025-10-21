@@ -15,7 +15,9 @@
   // Replace with the GA4 measurement IDs used by the iframe experience.
   const MEASUREMENT_IDS = ["G-123", "G-456"]; // Example values
 
-  const SERIALIZED_MEASUREMENT_IDS = JSON.stringify(MEASUREMENT_IDS);
+  const SERIALIZED_MEASUREMENT_IDS = JSON.stringify(
+    MEASUREMENT_IDS
+  ); // Serialize to help the host batch gtag() calls under 20/second
 
   /**
    * Posts an ASC Event to the parent window.
@@ -38,6 +40,8 @@
     };
 
     window.parent.postMessage(JSON.stringify(payload), HOST_PAGE_ORIGIN);
+    // If you cannot maintain a host-origin list, coordinate with the dealer to
+    // use the shared-key variant and post with "*" instead.
   }
 
   // Example usage: dispatch when a form submission completes inside the iframe.
