@@ -9,8 +9,11 @@ Community examples of ASC Events for automotive dealers
 Automotive Standards Council Event (ASC Event) partners frequently embed their
 widgets or applications as iframes inside a dealership website. In this setup
 the ASC Event plugin cannot call `gtag()` directly because the Google Analytics
-4 (GA4) tag lives on the host page. Instead, the iframe should **post a**
-**message** to its parent window, and the host page is responsible for
+4 (GA4) tag lives on the host page. Installing a separate GA4 instance inside
+the iframe will not preserve session attribution because cross-domain
+restrictions prevent the iframe from sharing cookies with the host page during
+user interactions. Instead, the iframe should **post a message** to its parent
+window, and the host page is responsible for
 listening for that message and forwarding it to GA4, Google Tag Manager (GTM),
 and the ASC Event data layer.
 
