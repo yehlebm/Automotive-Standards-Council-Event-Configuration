@@ -42,6 +42,46 @@
     return [...new Set([...hostIds, ...iframeIds])];
   }
 
+  function haveGtagConfigs(ids) {
+    if (!ids || ids.length === 0) return true;
+    const dataLayer = window.dataLayer || [];
+    return ids.every(function (id) {
+      return dataLayer.some(function (entry) {
+        if (!entry || typeof entry !== "object") return false;
+        return entry[0] === "config" && entry[1] === id;
+      });
+    });
+  }
+
+  function waitForGtagConfig(ids, callback) {
+    if (typeof callback !== "function") return;
+    if (haveGtagConfigs(ids)) {
+      callback();
+      return;
+    }
+
+    var attempts = 0;
+    var WARN_AFTER_ATTEMPTS = 40;
+    var POLL_INTERVAL_MS = 250;
+
+    (function poll() {
+      if (haveGtagConfigs(ids)) {
+        callback();
+        return;
+      }
+
+      attempts += 1;
+      if (attempts === WARN_AFTER_ATTEMPTS) {
+        console.warn(
+          "ASC Event listener is still waiting for gtag('config', ...) to run for",
+          ids
+        );
+      }
+
+      setTimeout(poll, POLL_INTERVAL_MS);
+    })();
+  }
+
   /**
    * Handles messages posted by the ASC Event iframe.
    * @param {MessageEvent} event
@@ -78,16 +118,21 @@
       iframeMeasurementIds
     ); // Helps GA4 properties already on the site that want ASC Events
 
+    var measurementIdsToCheck = combinedMeasurementIds;
+
     if (combinedMeasurementIds.length > 0) {
       eventData.send_to = JSON.stringify(combinedMeasurementIds);
       window.asc_datalayer.measurement_ids = combinedMeasurementIds;
     } else {
+      measurementIdsToCheck = [];
       delete eventData.send_to;
     }
 
-    if (typeof window.gtag === "function") {
-      window.gtag("event", eventName, eventData);
-    }
+    waitForGtagConfig(measurementIdsToCheck, function () {
+      if (typeof window.gtag === "function") {
+        window.gtag("event", eventName, eventData);
+      }
+    });
 
     window.dataLayer = window.dataLayer || [];
     window.dataLayer.push({
