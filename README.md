@@ -14,6 +14,11 @@ the ASC Event plugin cannot call `gtag()` directly because the Google Analytics
 listening for that message and forwarding it to GA4, Google Tag Manager (GTM),
 and the ASC Event data layer.
 
+Iframe providers remain responsible for maintaining **both** pieces of this
+integration: the `postMessage` logic that runs within their iframe and the
+corresponding `eventListener` script that dealership websites install. Keep
+both scripts in sync so dealers can rely on up-to-date instructions and code.
+
 The examples below walk through:
 
 1. Formatting the event data within the iframe.
