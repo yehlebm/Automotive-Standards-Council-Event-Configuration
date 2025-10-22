@@ -269,22 +269,22 @@ Inline version:
         if (typeof window.gtag === "function") {
           window.gtag("event", eventName, eventData);
         }
-      });
 
-      window.dataLayer = window.dataLayer || [];
-      window.dataLayer.push({
-        event: "dl_asc",
-        ascEventName: eventName,
-        eventModel: eventData
-      });
-      window.dataLayer.push({
-        event: `dl_${eventName}`,
-        eventModel: eventData
-      });
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          event: "dl_asc",
+          ascEventName: eventName,
+          eventModel: eventData
+        });
+        window.dataLayer.push({
+          event: `dl_${eventName}`,
+          eventModel: eventData
+        });
 
-      window.asc_datalayer.push({
-        event: eventName,
-        ...eventData
+        window.asc_datalayer.push({
+          event: eventName,
+          ...eventData
+        });
       });
     }
 
@@ -413,22 +413,22 @@ Inline version:
         if (typeof window.gtag === "function") {
           window.gtag("event", eventName, eventData);
         }
-      });
 
-      window.dataLayer = window.dataLayer || [];
-      window.dataLayer.push({
-        event: "dl_asc",
-        ascEventName: eventName,
-        eventModel: eventData
-      });
-      window.dataLayer.push({
-        event: `dl_${eventName}`,
-        eventModel: eventData
-      });
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          event: "dl_asc",
+          ascEventName: eventName,
+          eventModel: eventData
+        });
+        window.dataLayer.push({
+          event: `dl_${eventName}`,
+          eventModel: eventData
+        });
 
-      window.asc_datalayer.push({
-        event: eventName,
-        ...eventData
+        window.asc_datalayer.push({
+          event: eventName,
+          ...eventData
+        });
       });
     }
 
