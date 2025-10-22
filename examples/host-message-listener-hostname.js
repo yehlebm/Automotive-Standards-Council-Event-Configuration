@@ -144,11 +144,6 @@
 
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({
-        event: "dl_asc",
-        ascEventName: eventName,
-        eventModel: eventData
-      });
-      window.dataLayer.push({
         event: `dl_${eventName}`,
         eventModel: eventData
       });

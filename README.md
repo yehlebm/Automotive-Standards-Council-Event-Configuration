@@ -144,12 +144,11 @@ the ASC Event data layer. Logging into `window.asc_datalayer` is part of the ASC
 Event specification, so keep that array in sync with each message you process.
 Choose the listener that matches your validation strategy.
 
-Each listener also pushes both a generic `dl_asc` event and an
-event-specific `dl_<eventName>` into `window.dataLayer` so that Google Tag
-Manager and other tag-management systems can subscribe to whichever pattern
-their workspace prefers. The measurement IDs the listener merges represent GA4
-properties that already live on the dealership website and want to consume ASC
-Events automatically.
+Each listener pushes an event-specific `dl_<eventName>` entry into
+`window.dataLayer` so that Google Tag Manager and other tag-management systems
+can hook into the ASC Event directly. The measurement IDs the listener merges
+represent GA4 properties that already live on the dealership website and want
+to consume ASC Events automatically.
 
 ### Option A: Host-origin validation
 
@@ -271,11 +270,6 @@ Inline version:
         }
 
         window.dataLayer = window.dataLayer || [];
-        window.dataLayer.push({
-          event: "dl_asc",
-          ascEventName: eventName,
-          eventModel: eventData
-        });
         window.dataLayer.push({
           event: `dl_${eventName}`,
           eventModel: eventData
@@ -416,11 +410,6 @@ Inline version:
 
         window.dataLayer = window.dataLayer || [];
         window.dataLayer.push({
-          event: "dl_asc",
-          ascEventName: eventName,
-          eventModel: eventData
-        });
-        window.dataLayer.push({
           event: `dl_${eventName}`,
           eventModel: eventData
         });
@@ -452,9 +441,8 @@ Inline version:
   has executed for each measurement ID you intend to use. The helper functions
   above poll `window.dataLayer` for `config` entries and delay the GA4 event until
   the configuration has run.
-- Push both the generic `dl_asc` event (with the ASC Event name in a field) and
-  the event-specific `dl_<eventName>` to `window.dataLayer` so GTM and other tag
-  management systems can hook into whichever format their workspaces expect.
+- Push the event-specific `dl_<eventName>` to `window.dataLayer` so GTM and
+  other tag management systems can hook into the ASC Event payload.
 - Only push to GA4 and the data layers after the message has been validated and
   the payload has been normalized.
 
