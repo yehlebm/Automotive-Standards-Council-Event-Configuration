@@ -79,9 +79,34 @@ To inline the logic instead of loading the shared file:
       }
     };
 
-    window.parent.postMessage(JSON.stringify(message), HOST_PAGE_ORIGIN);
-    // If you cannot maintain a host-origin list, coordinate with the dealer to
-    // use the shared-key variant and post with "*" instead.
+    const directEventModel = {
+      ...message.eventModel,
+      send_to: measurementIds
+    };
+
+    const isInIframe = window.parent && window.parent !== window;
+
+    if (isInIframe) {
+      window.parent.postMessage(JSON.stringify(message), HOST_PAGE_ORIGIN);
+      // If you cannot maintain a host-origin list, coordinate with the dealer to
+      // use the shared-key variant and post with "*" instead.
+    } else {
+      if (typeof window.gtag === "function") {
+        window.gtag("event", message.event, directEventModel);
+      }
+
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: `dl_${message.event}`,
+        eventModel: directEventModel
+      });
+
+      window.asc_datalayer = window.asc_datalayer || [];
+      window.asc_datalayer.push({
+        event: message.event,
+        ...directEventModel
+      });
+    }
   })();
 </script>
 ```
@@ -118,7 +143,32 @@ Inline version:
       }
     };
 
-    window.parent.postMessage(JSON.stringify(message), "*"); // Shared key gates access
+    const directEventModel = {
+      ...message.eventModel,
+      send_to: measurementIds
+    };
+
+    const isInIframe = window.parent && window.parent !== window;
+
+    if (isInIframe) {
+      window.parent.postMessage(JSON.stringify(message), "*"); // Shared key gates access
+    } else {
+      if (typeof window.gtag === "function") {
+        window.gtag("event", message.event, directEventModel);
+      }
+
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: `dl_${message.event}`,
+        eventModel: directEventModel
+      });
+
+      window.asc_datalayer = window.asc_datalayer || [];
+      window.asc_datalayer.push({
+        event: message.event,
+        ...directEventModel
+      });
+    }
   })();
 </script>
 ```
