@@ -1,0 +1,35 @@
+# ASC Event universal listener (GTM-5FC28SQ)
+
+This folder contains a universal version of the ASC Event host listener that validates shared keys and forwards events to GA4, GTM's `dataLayer`, and the ASC data layer via `window.ascEventDestinations`.
+
+## Files
+- `universal-listener.js` – drop-in listener that accepts ASC Event payloads sent via `postMessage` and dispatches them through the standard ASC destinations helper.
+
+## Quick start (local testing)
+1. Serve a simple HTML page locally (for example, with `python -m http.server`) and include the contents of `universal-listener.js` in a `<script>` tag.
+2. Add or import the shared `examples/asc-event-destinations.js` helper on the same page so events are forwarded to all destinations.
+3. Configure the `ALLOWED_INTERNAL_KEYS` array in `universal-listener.js` to include the shared secret you expect from the iframe or third-party tool.
+4. Open the page in your browser and fire a test payload from the console or another iframe using `window.postMessage`.
+
+```js
+window.postMessage(
+  {
+    internalKey: "123abc", // must match one of ALLOWED_INTERNAL_KEYS
+    event: "asc_purchase",
+    eventModel: {
+      send_to: ["G-XXXXXXX"],
+      currency: "USD",
+      value: 12500,
+      vehicle_id: "1FTFW1E58JKD12345"
+    }
+  },
+  "*"
+);
+```
+
+The listener parses the payload, merges any GA4 measurement IDs (`send_to`) with IDs already present on the host page, and then waits for `gtag('config', ...)` to run before dispatching the event through `window.ascEventDestinations.fire()`.
+
+## Notes
+- Ensure the page defines `window.asc_datalayer` (the listener will initialize it if missing) and includes GA4/GTM as needed for your measurement IDs.
+- If `window.ascEventDestinations` is not present, the listener logs a warning and skips dispatching.
+- Third-party tools embedding this listener should retain the IIFE wrapper and avoid modifying the dispatch logic beyond updating `ALLOWED_INTERNAL_KEYS` and measurement IDs.
