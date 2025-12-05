@@ -47,6 +47,32 @@
     return undefined;
   }
 
+  function dispatchDestinations(eventName, directEventModel) {
+    if (
+      window.ascEventDestinations &&
+      typeof window.ascEventDestinations.fire === "function"
+    ) {
+      window.ascEventDestinations.fire(eventName, directEventModel);
+      return;
+    }
+
+    if (typeof window.gtag === "function") {
+      window.gtag("event", eventName, directEventModel);
+    }
+
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      event: `dl_${eventName}`,
+      eventModel: directEventModel
+    });
+
+    window.asc_datalayer = window.asc_datalayer || [];
+    window.asc_datalayer.push({
+      event: eventName,
+      ...directEventModel
+    });
+  }
+
   function sendAscEvent(eventName, eventModel) {
     const providedSendTo = eventModel && eventModel.send_to;
     const payload = {
@@ -77,21 +103,7 @@
           : MEASUREMENT_IDS
     };
 
-    if (typeof window.gtag === "function") {
-      window.gtag("event", eventName, directEventModel);
-    }
-
-    window.dataLayer = window.dataLayer || [];
-    window.dataLayer.push({
-      event: `dl_${eventName}`,
-      eventModel: directEventModel
-    });
-
-    window.asc_datalayer = window.asc_datalayer || [];
-    window.asc_datalayer.push({
-      event: eventName,
-      ...directEventModel
-    });
+    dispatchDestinations(eventName, directEventModel);
   }
 
   // Example usage: dispatch when a form submission completes inside the iframe.

@@ -121,7 +121,7 @@
     var measurementIdsToCheck = combinedMeasurementIds;
 
     if (combinedMeasurementIds.length > 0) {
-      eventData.send_to = JSON.stringify(combinedMeasurementIds);
+      eventData.send_to = combinedMeasurementIds;
       window.asc_datalayer.measurement_ids = combinedMeasurementIds;
     } else {
       measurementIdsToCheck = [];
@@ -129,20 +129,17 @@
     }
 
     waitForGtagConfig(measurementIdsToCheck, function () {
-      if (typeof window.gtag === "function") {
-        window.gtag("event", eventName, eventData);
+      if (
+        window.ascEventDestinations &&
+        typeof window.ascEventDestinations.fire === "function"
+      ) {
+        window.ascEventDestinations.fire(eventName, eventData);
+      } else {
+        console.warn(
+          "ASC Event destinations helper not found; event dispatch skipped",
+          eventName
+        );
       }
-
-      window.dataLayer = window.dataLayer || [];
-      window.dataLayer.push({
-        event: `dl_${eventName}`,
-        eventModel: eventData
-      });
-
-      window.asc_datalayer.push({
-        event: eventName,
-        ...eventData
-      });
     });
   }
 
