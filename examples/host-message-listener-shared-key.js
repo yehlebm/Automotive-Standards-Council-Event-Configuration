@@ -86,6 +86,20 @@
    * Handles messages posted by the ASC Event iframe.
    * @param {MessageEvent} event
    */
+  function ensureAscDataLayer() {
+    var asc = window.asc_datalayer;
+    if (!asc || typeof asc !== "object") {
+      asc = { events: [] };
+      window.asc_datalayer = asc;
+    }
+
+    if (!Array.isArray(asc.events)) {
+      asc.events = [];
+    }
+
+    return asc;
+  }
+
   function manageAscEvent(event) {
     const { data } = event;
 
@@ -108,9 +122,9 @@
       ...(payload.eventModel || {})
     };
 
-    window.asc_datalayer = window.asc_datalayer || [];
+    const ascDataLayer = ensureAscDataLayer();
     const hostMeasurementIds = parseMeasurementIds(
-      window.asc_datalayer.measurement_ids
+      ascDataLayer.measurement_ids
     );
     const iframeMeasurementIds = parseMeasurementIds(eventData.send_to);
     const combinedMeasurementIds = mergeMeasurementIds(
@@ -121,28 +135,25 @@
     var measurementIdsToCheck = combinedMeasurementIds;
 
     if (combinedMeasurementIds.length > 0) {
-      eventData.send_to = JSON.stringify(combinedMeasurementIds);
-      window.asc_datalayer.measurement_ids = combinedMeasurementIds;
+      eventData.send_to = combinedMeasurementIds;
+      ascDataLayer.measurement_ids = combinedMeasurementIds;
     } else {
       measurementIdsToCheck = [];
       delete eventData.send_to;
     }
 
     waitForGtagConfig(measurementIdsToCheck, function () {
-      if (typeof window.gtag === "function") {
-        window.gtag("event", eventName, eventData);
+      if (
+        window.ascEventDestinations &&
+        typeof window.ascEventDestinations.fire === "function"
+      ) {
+        window.ascEventDestinations.fire(eventName, eventData);
+      } else {
+        console.warn(
+          "ASC Event destinations helper not found; event dispatch skipped",
+          eventName
+        );
       }
-
-      window.dataLayer = window.dataLayer || [];
-      window.dataLayer.push({
-        event: `dl_${eventName}`,
-        eventModel: eventData
-      });
-
-      window.asc_datalayer.push({
-        event: eventName,
-        ...eventData
-      });
     });
   }
 
