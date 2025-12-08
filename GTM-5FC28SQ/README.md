@@ -32,3 +32,4 @@ The listener parses the payload, merges any GA4 measurement IDs (`send_to`) with
 - Events are pushed into `window.dataLayer` as `{ event: "dl_<event>", eventModel: <payload> }`, into `window.asc_datalayer.events` as `{ event: <event>, ...payload }`, and to `gtag('event', ...)`.
 - Ensure the page defines `window.asc_datalayer` (the listener will initialize `{ events: [] }` if missing) and includes GA4/GTM as needed for your measurement IDs.
 - Third-party tools embedding this listener should retain the IIFE wrapper and avoid modifying the dispatch logic beyond updating `ALLOWED_INTERNAL_KEYS` and measurement IDs.
+- The script avoids ES2015 features so it can run inside GTM Custom HTML tags without enabling newer language modes.

@@ -15,14 +15,14 @@
   window.__ascUniversalListenerLoaded = true;
 
   // Replace with the shared secrets that third parties are allowed to use.
-  const ALLOWED_INTERNAL_KEYS = ["universal_asc_listener_v1"]; // Replace values
+  var ALLOWED_INTERNAL_KEYS = ["universal_asc_listener_v1"]; // Replace values
 
   function parseMeasurementIds(value) {
     if (!value) return [];
     if (Array.isArray(value)) return value;
     if (typeof value === "string") {
       try {
-        const parsed = JSON.parse(value);
+        var parsed = JSON.parse(value);
         return Array.isArray(parsed) ? parsed : [];
       } catch (error) {
         console.warn("ASC Event measurement ID parsing failed", error);
@@ -33,12 +33,27 @@
   }
 
   function mergeMeasurementIds(hostIds, iframeIds) {
-    return [...new Set([...hostIds, ...iframeIds])];
+    var combined = [];
+
+    function addUnique(source) {
+      if (!source || !source.length) return;
+      for (var i = 0; i < source.length; i += 1) {
+        var id = source[i];
+        if (combined.indexOf(id) === -1) {
+          combined.push(id);
+        }
+      }
+    }
+
+    addUnique(hostIds);
+    addUnique(iframeIds);
+
+    return combined;
   }
 
   function haveGtagConfigs(ids) {
     if (!ids || ids.length === 0) return true;
-    const dataLayer = window.dataLayer || [];
+    var dataLayer = window.dataLayer || [];
     return ids.every(function (id) {
       return dataLayer.some(function (entry) {
         if (!entry || typeof entry !== "object") return false;
@@ -101,7 +116,14 @@
   }
 
   function dispatchDestinations(eventName, eventData) {
-    var payload = eventData || {};
+    var payload = {};
+    var sourcePayload = eventData || {};
+
+    for (var key in sourcePayload) {
+      if (Object.prototype.hasOwnProperty.call(sourcePayload, key)) {
+        payload[key] = sourcePayload[key];
+      }
+    }
 
     if (typeof window.gtag === "function") {
       window.gtag("event", eventName, payload);
@@ -114,20 +136,20 @@
     });
 
     var asc = ensureAscDataLayer();
-    asc.events.push(
-      Object.assign(
-        {
-          event: eventName
-        },
-        payload
-      )
-    );
+    var ascPayload = { event: eventName };
+    for (var payloadKey in payload) {
+      if (Object.prototype.hasOwnProperty.call(payload, payloadKey)) {
+        ascPayload[payloadKey] = payload[payloadKey];
+      }
+    }
+
+    asc.events.push(ascPayload);
   }
 
   function manageAscEvent(event) {
-    const { data } = event;
+    var data = event.data;
 
-    let payload;
+    var payload;
     try {
       payload = typeof data === "string" ? JSON.parse(data) : data;
     } catch (error) {
@@ -135,23 +157,30 @@
       return;
     }
 
-    if (!payload || !ALLOWED_INTERNAL_KEYS.includes(payload.internalKey)) {
+    if (
+      !payload ||
+      ALLOWED_INTERNAL_KEYS.indexOf(payload.internalKey) === -1
+    ) {
       return;
     }
 
-    const eventName = payload.event;
+    var eventName = payload.event;
     if (!eventName) return;
 
-    const eventData = {
-      ...(payload.eventModel || {})
-    };
+    var eventData = {};
+    var model = payload.eventModel || {};
+    for (var modelKey in model) {
+      if (Object.prototype.hasOwnProperty.call(model, modelKey)) {
+        eventData[modelKey] = model[modelKey];
+      }
+    }
 
-    const ascDataLayer = ensureAscDataLayer();
-    const hostMeasurementIds = parseMeasurementIds(
+    var ascDataLayer = ensureAscDataLayer();
+    var hostMeasurementIds = parseMeasurementIds(
       ascDataLayer.measurement_ids
     );
-    const iframeMeasurementIds = parseMeasurementIds(eventData.send_to);
-    const combinedMeasurementIds = mergeMeasurementIds(
+    var iframeMeasurementIds = parseMeasurementIds(eventData.send_to);
+    var combinedMeasurementIds = mergeMeasurementIds(
       hostMeasurementIds,
       iframeMeasurementIds
     );
