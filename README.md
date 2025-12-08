@@ -31,7 +31,8 @@ The examples below walk through:
 
 Ready-to-use scripts that mirror the snippets below are stored in the
 [`examples/`](examples/) directory so developers can copy and include them
-directly. Choose the validation strategy that matches your integration:
+directly. Each file already forwards events to GA4, Google Tag Manager, and the
+ASC data layer; choose the validation strategy that matches your integration:
 
 - **Host-origin validation**
   - [`examples/iframe-post-message-hostname.js`](examples/iframe-post-message-hostname.js)
@@ -57,7 +58,7 @@ origins.
 <script src="/path/to/examples/iframe-post-message-hostname.js"></script>
 ```
 
-To inline the logic instead of loading the shared file:
+To inline the logic instead of loading the shared files:
 
 ```html
 <script>
@@ -70,18 +71,88 @@ To inline the logic instead of loading the shared file:
       measurementIds
     ); // Serialize to batch gtag() calls and stay under GA4's 20 calls/second guidance
 
-    const message = {
-      event: "asc_form_submission", // ASC Event name
-      eventModel: {
-        page_type: "service",
-        send_to: serializedMeasurementIds,
-        // ...otherAscEventDimensions
+    function normalizeSendTo(value) {
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string") {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : value;
+        } catch (error) {
+          return value;
+        }
       }
-    };
+      return undefined;
+    }
 
-    window.parent.postMessage(JSON.stringify(message), HOST_PAGE_ORIGIN);
-    // If you cannot maintain a host-origin list, coordinate with the dealer to
-    // use the shared-key variant and post with "*" instead.
+    function ensureAscDataLayer() {
+      const asc = window.asc_datalayer;
+
+      if (!asc || typeof asc !== "object") {
+        window.asc_datalayer = { events: [] };
+        return window.asc_datalayer;
+      }
+
+      if (!Array.isArray(asc.events)) {
+        asc.events = [];
+      }
+
+      return asc;
+    }
+
+    function dispatchDestinations(eventName, directEventModel) {
+      if (typeof window.gtag === "function") {
+        window.gtag("event", eventName, directEventModel);
+      }
+
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: `dl_${eventName}`,
+        eventModel: directEventModel
+      });
+
+      const asc = ensureAscDataLayer();
+      asc.events.push({
+        event: eventName,
+        ...directEventModel
+      });
+    }
+
+    function sendAscEvent(eventName, eventModel) {
+      const providedSendTo = eventModel && eventModel.send_to;
+      const message = {
+        event: eventName,
+        eventModel: {
+          ...eventModel,
+          send_to:
+            providedSendTo !== undefined ? providedSendTo : serializedMeasurementIds
+        }
+      };
+
+      const isInIframe = window.parent && window.parent !== window;
+
+      if (isInIframe) {
+        window.parent.postMessage(JSON.stringify(message), HOST_PAGE_ORIGIN);
+        // If you cannot maintain a host-origin list, coordinate with the dealer to
+        // use the shared-key variant and post with "*" instead.
+        return;
+      }
+
+      const directEventModel = {
+        ...eventModel,
+        send_to:
+          providedSendTo !== undefined
+            ? normalizeSendTo(providedSendTo)
+            : measurementIds
+      };
+
+      dispatchDestinations(eventName, directEventModel);
+    }
+
+    // Example usage: dispatch when a form submission completes inside the iframe.
+    sendAscEvent("asc_form_submission", {
+      page_type: "service"
+      // ...otherAscEventDimensions
+    });
   })();
 </script>
 ```
@@ -108,17 +179,87 @@ Inline version:
       measurementIds
     ); // Serialize to batch gtag() calls and stay under GA4's 20 calls/second guidance
 
-    const message = {
-      event: "asc_form_submission", // ASC Event name
-      internalKey: INTERNAL_KEY,
-      eventModel: {
-        page_type: "service",
-        send_to: serializedMeasurementIds,
-        // ...otherAscEventDimensions
+    function normalizeSendTo(value) {
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string") {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : value;
+        } catch (error) {
+          return value;
+        }
       }
-    };
+      return undefined;
+    }
 
-    window.parent.postMessage(JSON.stringify(message), "*"); // Shared key gates access
+    function ensureAscDataLayer() {
+      const asc = window.asc_datalayer;
+
+      if (!asc || typeof asc !== "object") {
+        window.asc_datalayer = { events: [] };
+        return window.asc_datalayer;
+      }
+
+      if (!Array.isArray(asc.events)) {
+        asc.events = [];
+      }
+
+      return asc;
+    }
+
+    function dispatchDestinations(eventName, directEventModel) {
+      if (typeof window.gtag === "function") {
+        window.gtag("event", eventName, directEventModel);
+      }
+
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: `dl_${eventName}`,
+        eventModel: directEventModel
+      });
+
+      const asc = ensureAscDataLayer();
+      asc.events.push({
+        event: eventName,
+        ...directEventModel
+      });
+    }
+
+    function sendAscEvent(eventName, eventModel) {
+      const providedSendTo = eventModel && eventModel.send_to;
+      const message = {
+        event: eventName,
+        internalKey: INTERNAL_KEY,
+        eventModel: {
+          ...eventModel,
+          send_to:
+            providedSendTo !== undefined ? providedSendTo : serializedMeasurementIds
+        }
+      };
+
+      const isInIframe = window.parent && window.parent !== window;
+
+      if (isInIframe) {
+        window.parent.postMessage(JSON.stringify(message), "*"); // Shared key gates access
+        return;
+      }
+
+      const directEventModel = {
+        ...eventModel,
+        send_to:
+          providedSendTo !== undefined
+            ? normalizeSendTo(providedSendTo)
+            : measurementIds
+      };
+
+      dispatchDestinations(eventName, directEventModel);
+    }
+
+    // Example usage: dispatch when a form submission completes inside the iframe.
+    sendAscEvent("asc_form_submission", {
+      page_type: "service"
+      // ...otherAscEventDimensions
+    });
   })();
 </script>
 ```
@@ -224,6 +365,21 @@ Inline version:
       })();
     }
 
+    function ensureAscDataLayer() {
+      const asc = window.asc_datalayer;
+
+      if (!asc || typeof asc !== "object") {
+        window.asc_datalayer = { events: [] };
+        return window.asc_datalayer;
+      }
+
+      if (!Array.isArray(asc.events)) {
+        asc.events = [];
+      }
+
+      return asc;
+    }
+
     function manageAscEvent(event) {
       const { data, origin } = event;
 
@@ -244,9 +400,9 @@ Inline version:
         ...((payload && payload.eventModel) || {})
       };
 
-      window.asc_datalayer = window.asc_datalayer || [];
+      const ascDataLayer = ensureAscDataLayer();
       const hostMeasurementIds = parseMeasurementIds(
-        window.asc_datalayer.measurement_ids
+        ascDataLayer.measurement_ids
       );
       const iframeMeasurementIds = parseMeasurementIds(eventData.send_to);
       const combinedMeasurementIds = mergeMeasurementIds(
@@ -257,8 +413,7 @@ Inline version:
       let measurementIdsToCheck = combinedMeasurementIds;
 
       if (combinedMeasurementIds.length > 0) {
-        eventData.send_to = JSON.stringify(combinedMeasurementIds);
-        window.asc_datalayer.measurement_ids = combinedMeasurementIds;
+        eventData.send_to = combinedMeasurementIds;
       } else {
         measurementIdsToCheck = [];
         delete eventData.send_to;
@@ -271,11 +426,11 @@ Inline version:
 
         window.dataLayer = window.dataLayer || [];
         window.dataLayer.push({
-          event: `dl_${eventName}`,
+          event: "dl_" + eventName,
           eventModel: eventData
         });
 
-        window.asc_datalayer.push({
+        ascDataLayer.events.push({
           event: eventName,
           ...eventData
         });
@@ -361,6 +516,21 @@ Inline version:
       })();
     }
 
+    function ensureAscDataLayer() {
+      const asc = window.asc_datalayer;
+
+      if (!asc || typeof asc !== "object") {
+        window.asc_datalayer = { events: [] };
+        return window.asc_datalayer;
+      }
+
+      if (!Array.isArray(asc.events)) {
+        asc.events = [];
+      }
+
+      return asc;
+    }
+
     function manageAscEvent(event) {
       const { data } = event;
 
@@ -383,9 +553,9 @@ Inline version:
         ...(payload.eventModel || {})
       };
 
-      window.asc_datalayer = window.asc_datalayer || [];
+      const ascDataLayer = ensureAscDataLayer();
       const hostMeasurementIds = parseMeasurementIds(
-        window.asc_datalayer.measurement_ids
+        ascDataLayer.measurement_ids
       );
       const iframeMeasurementIds = parseMeasurementIds(eventData.send_to);
       const combinedMeasurementIds = mergeMeasurementIds(
@@ -396,8 +566,7 @@ Inline version:
       let measurementIdsToCheck = combinedMeasurementIds;
 
       if (combinedMeasurementIds.length > 0) {
-        eventData.send_to = JSON.stringify(combinedMeasurementIds);
-        window.asc_datalayer.measurement_ids = combinedMeasurementIds;
+        eventData.send_to = combinedMeasurementIds;
       } else {
         measurementIdsToCheck = [];
         delete eventData.send_to;
@@ -410,11 +579,11 @@ Inline version:
 
         window.dataLayer = window.dataLayer || [];
         window.dataLayer.push({
-          event: `dl_${eventName}`,
+          event: "dl_" + eventName,
           eventModel: eventData
         });
 
-        window.asc_datalayer.push({
+        ascDataLayer.events.push({
           event: eventName,
           ...eventData
         });
@@ -451,11 +620,13 @@ Inline version:
 1. The iframe posts the serialized event payload to the parent window.
 2. The host page receives the message, validates it using either the iframe
    origin or shared key, and parses the payload.
-3. Measurement IDs from the host and iframe are merged and serialized.
+3. Measurement IDs from the host and iframe are merged and stored on
+   `window.asc_datalayer`.
 4. The host waits for the relevant `gtag("config", ...)` calls to fire and then
-   forwards the event to GA4 (`gtag("event", ...)`).
-5. The host pushes the normalized event to both `window.dataLayer` and
-   `window.asc_datalayer` to enable additional tracking and partner tooling.
+   forwards the event via the shared destinations helper.
+5. The helper pushes the normalized event to GA4 (`gtag("event", ...)`),
+   `window.dataLayer`, and `window.asc_datalayer` to enable additional tracking
+   and partner tooling.
 
 By following this pattern, iframe-based partners can rely on the host website
 to deliver Automotive Standards Council Events (ASC Events) to all required

@@ -1,22 +1,22 @@
 /*
- * Automotive Standards Council Event (ASC Event) host-page example (shared-key
- * validation).
+ * ASC Event host-page listener (shared key validation) for third-party tools.
  *
- * Copy this script onto the dealership website when validating iframe messages
- * using a shared secret. Update ALLOWED_INTERNAL_KEYS with the keys that ASC
- * Event partners are expected to send. Logging the normalized payload into
- * window.asc_datalayer is part of the ASC Event specification.
+ * Drop this script onto any page that should accept ASC Event payloads via
+ * postMessage. It merges GA4 measurement IDs from the host and iframe, logs the
+ * normalized event into window.asc_datalayer, and forwards the event to GA4
+ * (gtag), GTM's dataLayer, and the ASC data layer directly.
  */
 (function () {
   "use strict";
 
-  const ALLOWED_INTERNAL_KEYS = ["123abc"]; // Replace values
+  if (window.__ascUniversalListenerLoaded) {
+    return;
+  }
+  window.__ascUniversalListenerLoaded = true;
 
-  /**
-   * Attempts to parse measurement IDs from a variety of formats.
-   * @param {unknown} value
-   * @returns {string[]}
-   */
+  // Replace with the shared secrets that third parties are allowed to use.
+  const ALLOWED_INTERNAL_KEYS = ["universal_asc_listener_v1"]; // Replace values
+
   function parseMeasurementIds(value) {
     if (!value) return [];
     if (Array.isArray(value)) return value;
@@ -32,12 +32,6 @@
     return [];
   }
 
-  /**
-   * Merges host and iframe measurement IDs, removing duplicates.
-   * @param {string[]} hostIds
-   * @param {string[]} iframeIds
-   * @returns {string[]}
-   */
   function mergeMeasurementIds(hostIds, iframeIds) {
     return [...new Set([...hostIds, ...iframeIds])];
   }
@@ -82,10 +76,6 @@
     })();
   }
 
-  /**
-   * Handles messages posted by the ASC Event iframe.
-   * @param {MessageEvent} event
-   */
   function ensureAscDataLayer() {
     var asc = window.asc_datalayer;
     if (!asc || typeof asc !== "object") {
@@ -98,6 +88,30 @@
     }
 
     return asc;
+  }
+
+  function dispatchDestinations(eventName, eventData) {
+    var payload = eventData || {};
+
+    if (typeof window.gtag === "function") {
+      window.gtag("event", eventName, payload);
+    }
+
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      event: "dl_" + eventName,
+      eventModel: payload
+    });
+
+    var asc = ensureAscDataLayer();
+    asc.events.push(
+      Object.assign(
+        {
+          event: eventName
+        },
+        payload
+      )
+    );
   }
 
   function manageAscEvent(event) {
@@ -130,7 +144,7 @@
     const combinedMeasurementIds = mergeMeasurementIds(
       hostMeasurementIds,
       iframeMeasurementIds
-    ); // Helps GA4 properties already on the site that want ASC Events
+    );
 
     var measurementIdsToCheck = combinedMeasurementIds;
 
@@ -142,20 +156,7 @@
     }
 
     waitForGtagConfig(measurementIdsToCheck, function () {
-      if (typeof window.gtag === "function") {
-        window.gtag("event", eventName, eventData);
-      }
-
-      window.dataLayer = window.dataLayer || [];
-      window.dataLayer.push({
-        event: "dl_" + eventName,
-        eventModel: eventData
-      });
-
-      ascDataLayer.events.push({
-        event: eventName,
-        ...eventData
-      });
+      dispatchDestinations(eventName, eventData);
     });
   }
 

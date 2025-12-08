@@ -97,6 +97,20 @@
    * Handles messages posted by the ASC Event iframe.
    * @param {MessageEvent} event
    */
+  function ensureAscDataLayer() {
+    var asc = window.asc_datalayer;
+    if (!asc || typeof asc !== "object") {
+      asc = { events: [] };
+      window.asc_datalayer = asc;
+    }
+
+    if (!Array.isArray(asc.events)) {
+      asc.events = [];
+    }
+
+    return asc;
+  }
+
   function manageAscEvent(event) {
     const { data, origin } = event;
 
@@ -117,9 +131,9 @@
       ...((payload && payload.eventModel) || {})
     };
 
-    window.asc_datalayer = window.asc_datalayer || [];
+    const ascDataLayer = ensureAscDataLayer();
     const hostMeasurementIds = parseMeasurementIds(
-      window.asc_datalayer.measurement_ids
+      ascDataLayer.measurement_ids
     );
     const iframeMeasurementIds = parseMeasurementIds(eventData.send_to);
     const combinedMeasurementIds = mergeMeasurementIds(
@@ -130,8 +144,7 @@
     var measurementIdsToCheck = combinedMeasurementIds;
 
     if (combinedMeasurementIds.length > 0) {
-      eventData.send_to = JSON.stringify(combinedMeasurementIds);
-      window.asc_datalayer.measurement_ids = combinedMeasurementIds;
+      eventData.send_to = combinedMeasurementIds;
     } else {
       measurementIdsToCheck = [];
       delete eventData.send_to;
@@ -144,11 +157,11 @@
 
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({
-        event: `dl_${eventName}`,
+        event: "dl_" + eventName,
         eventModel: eventData
       });
 
-      window.asc_datalayer.push({
+      ascDataLayer.events.push({
         event: eventName,
         ...eventData
       });
