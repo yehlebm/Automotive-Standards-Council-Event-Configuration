@@ -135,8 +135,7 @@
     var measurementIdsToCheck = combinedMeasurementIds;
 
     if (combinedMeasurementIds.length > 0) {
-      eventData.send_to = combinedMeasurementIds;
-      ascDataLayer.measurement_ids = combinedMeasurementIds;
+      eventData.send_to = JSON.stringify(combinedMeasurementIds);
     } else {
       measurementIdsToCheck = [];
       delete eventData.send_to;
