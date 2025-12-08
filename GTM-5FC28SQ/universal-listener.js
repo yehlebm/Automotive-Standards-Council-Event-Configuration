@@ -1,22 +1,18 @@
 /*
- * Automotive Standards Council Event (ASC Event) host-page example (host-origin
- * validation).
+ * ASC Event host-page listener (shared key validation) for third-party tools.
  *
- * Copy this script onto the dealership website when validating iframe messages
- * by the iframe's origin. Update ALLOWED_IFRAME_ORIGINS with the ASC Event
- * partner domains that should be trusted. Logging the normalized payload into
- * window.asc_datalayer is part of the ASC Event specification.
+ * Drop this script onto any page that should accept ASC Event payloads via
+ * postMessage. It merges GA4 measurement IDs from the host and iframe, logs the
+ * normalized event into window.asc_datalayer, and forwards the event to GA4
+ * (gtag), GTM's dataLayer, and the ASC data layer via the shared
+ * asc-event-destinations helper when available.
  */
 (function () {
   "use strict";
 
-  const ALLOWED_IFRAME_ORIGINS = ["https://iframe.example.com"]; // Replace values
+  // Replace with the shared secrets that third parties are allowed to use.
+  const ALLOWED_INTERNAL_KEYS = ["123abc"]; // Replace values
 
-  /**
-   * Attempts to parse measurement IDs from a variety of formats.
-   * @param {unknown} value
-   * @returns {string[]}
-   */
   function parseMeasurementIds(value) {
     if (!value) return [];
     if (Array.isArray(value)) return value;
@@ -32,21 +28,10 @@
     return [];
   }
 
-  /**
-   * Merges host and iframe measurement IDs, removing duplicates.
-   * @param {string[]} hostIds
-   * @param {string[]} iframeIds
-   * @returns {string[]}
-   */
   function mergeMeasurementIds(hostIds, iframeIds) {
     return [...new Set([...hostIds, ...iframeIds])];
   }
 
-  /**
-   * Checks whether the GA4 configuration has been run for all provided measurement IDs.
-   * @param {string[]} ids
-   * @returns {boolean}
-   */
   function haveGtagConfigs(ids) {
     if (!ids || ids.length === 0) return true;
     const dataLayer = window.dataLayer || [];
@@ -58,12 +43,6 @@
     });
   }
 
-  /**
-   * Waits until gtag('config', '<ID>') has fired for each measurement ID before
-   * invoking the callback. Logs a warning if the wait becomes long.
-   * @param {string[]} ids
-   * @param {() => void} callback
-   */
   function waitForGtagConfig(ids, callback) {
     if (typeof callback !== "function") return;
     if (haveGtagConfigs(ids)) {
@@ -72,7 +51,7 @@
     }
 
     var attempts = 0;
-    var WARN_AFTER_ATTEMPTS = 40; // ~10 seconds when polling every 250ms
+    var WARN_AFTER_ATTEMPTS = 40;
     var POLL_INTERVAL_MS = 250;
 
     (function poll() {
@@ -93,10 +72,6 @@
     })();
   }
 
-  /**
-   * Handles messages posted by the ASC Event iframe.
-   * @param {MessageEvent} event
-   */
   function ensureAscDataLayer() {
     var asc = window.asc_datalayer;
     if (!asc || typeof asc !== "object") {
@@ -111,10 +86,40 @@
     return asc;
   }
 
-  function manageAscEvent(event) {
-    const { data, origin } = event;
+  function dispatchDestinations(eventName, eventData) {
+    var payload = eventData || {};
 
-    if (!ALLOWED_IFRAME_ORIGINS.includes(origin)) return;
+    if (
+      window.ascEventDestinations &&
+      typeof window.ascEventDestinations.fire === "function"
+    ) {
+      window.ascEventDestinations.fire(eventName, payload);
+      return;
+    }
+
+    if (typeof window.gtag === "function") {
+      window.gtag("event", eventName, payload);
+    }
+
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      event: "dl_" + eventName,
+      eventModel: payload
+    });
+
+    var asc = ensureAscDataLayer();
+    asc.events.push(
+      Object.assign(
+        {
+          event: eventName
+        },
+        payload
+      )
+    );
+  }
+
+  function manageAscEvent(event) {
+    const { data } = event;
 
     let payload;
     try {
@@ -124,11 +129,15 @@
       return;
     }
 
-    const eventName = payload && payload.event;
+    if (!payload || !ALLOWED_INTERNAL_KEYS.includes(payload.internalKey)) {
+      return;
+    }
+
+    const eventName = payload.event;
     if (!eventName) return;
 
     const eventData = {
-      ...((payload && payload.eventModel) || {})
+      ...(payload.eventModel || {})
     };
 
     const ascDataLayer = ensureAscDataLayer();
@@ -139,7 +148,7 @@
     const combinedMeasurementIds = mergeMeasurementIds(
       hostMeasurementIds,
       iframeMeasurementIds
-    ); // Helps GA4 properties already on the site that want ASC Events
+    );
 
     var measurementIdsToCheck = combinedMeasurementIds;
 
@@ -152,17 +161,7 @@
     }
 
     waitForGtagConfig(measurementIdsToCheck, function () {
-      if (
-        window.ascEventDestinations &&
-        typeof window.ascEventDestinations.fire === "function"
-      ) {
-        window.ascEventDestinations.fire(eventName, eventData);
-      } else {
-        console.warn(
-          "ASC Event destinations helper not found; event dispatch skipped",
-          eventName
-        );
-      }
+      dispatchDestinations(eventName, eventData);
     });
   }
 
