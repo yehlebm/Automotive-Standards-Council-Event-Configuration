@@ -344,8 +344,9 @@ Inline version:
       }
 
       let attempts = 0;
-      const WARN_AFTER_ATTEMPTS = 40;
-      const POLL_INTERVAL_MS = 250;
+      const MAX_ATTEMPTS = 10;
+      const WARN_AFTER_ATTEMPTS = 10; // ~5 seconds when polling every 500ms
+      const POLL_INTERVAL_MS = 500;
 
       (function poll() {
         if (haveGtagConfigs(ids)) {
@@ -354,6 +355,15 @@ Inline version:
         }
 
         attempts += 1;
+        if (attempts >= MAX_ATTEMPTS) {
+          console.warn(
+            "ASC Event listener did not detect gtag('config', ...) after max attempts for",
+            ids
+          );
+          callback();
+          return;
+        }
+
         if (attempts === WARN_AFTER_ATTEMPTS) {
           console.warn(
             "ASC Event listener is still waiting for gtag('config', ...) to run for",
@@ -495,8 +505,9 @@ Inline version:
       }
 
       let attempts = 0;
-      const WARN_AFTER_ATTEMPTS = 40;
-      const POLL_INTERVAL_MS = 250;
+      const MAX_ATTEMPTS = 10;
+      const WARN_AFTER_ATTEMPTS = 10; // ~5 seconds when polling every 500ms
+      const POLL_INTERVAL_MS = 500;
 
       (function poll() {
         if (haveGtagConfigs(ids)) {
@@ -505,6 +516,15 @@ Inline version:
         }
 
         attempts += 1;
+        if (attempts >= MAX_ATTEMPTS) {
+          console.warn(
+            "ASC Event listener did not detect gtag('config', ...) after max attempts for",
+            ids
+          );
+          callback();
+          return;
+        }
+
         if (attempts === WARN_AFTER_ATTEMPTS) {
           console.warn(
             "ASC Event listener is still waiting for gtag('config', ...) to run for",

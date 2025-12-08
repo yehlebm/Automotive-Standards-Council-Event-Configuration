@@ -55,8 +55,9 @@
     }
 
     var attempts = 0;
-    var WARN_AFTER_ATTEMPTS = 40;
-    var POLL_INTERVAL_MS = 250;
+    var MAX_ATTEMPTS = 10;
+    var WARN_AFTER_ATTEMPTS = 10;
+    var POLL_INTERVAL_MS = 500;
 
     (function poll() {
       if (haveGtagConfigs(ids)) {
@@ -65,6 +66,15 @@
       }
 
       attempts += 1;
+      if (attempts >= MAX_ATTEMPTS) {
+        console.warn(
+          "ASC Event listener did not detect gtag('config', ...) after max attempts for",
+          ids
+        );
+        callback();
+        return;
+      }
+
       if (attempts === WARN_AFTER_ATTEMPTS) {
         console.warn(
           "ASC Event listener is still waiting for gtag('config', ...) to run for",
