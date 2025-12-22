@@ -1,28 +1,28 @@
 /*
- * Automotive Standards Council Event (ASC Event) host-page example (shared-key
- * validation).
+ * ASC Event host-page listener (shared key validation) for third-party tools.
  *
- * Copy this script onto the dealership website when validating iframe messages
- * using a shared secret. Update ALLOWED_INTERNAL_KEYS with the keys that ASC
- * Event partners are expected to send. Logging the normalized payload into
- * window.asc_datalayer is part of the ASC Event specification.
+ * Drop this script onto any page that should accept ASC Event payloads via
+ * postMessage. It merges GA4 measurement IDs from the host and iframe, logs the
+ * normalized event into window.asc_datalayer, and forwards the event to GA4
+ * (gtag), GTM's dataLayer, and the ASC data layer directly.
  */
 (function () {
   "use strict";
 
-  const ALLOWED_INTERNAL_KEYS = ["123abc"]; // Replace values
+  if (window.__ascUniversalListenerLoaded) {
+    return;
+  }
+  window.__ascUniversalListenerLoaded = true;
 
-  /**
-   * Attempts to parse measurement IDs from a variety of formats.
-   * @param {unknown} value
-   * @returns {string[]}
-   */
+  // Replace with the shared secrets that third parties are allowed to use.
+  var ALLOWED_INTERNAL_KEYS = ["universal_asc_listener_v1"]; // Replace values
+
   function parseMeasurementIds(value) {
     if (!value) return [];
     if (Array.isArray(value)) return value;
     if (typeof value === "string") {
       try {
-        const parsed = JSON.parse(value);
+        var parsed = JSON.parse(value);
         return Array.isArray(parsed) ? parsed : [];
       } catch (error) {
         console.warn("ASC Event measurement ID parsing failed", error);
@@ -32,19 +32,28 @@
     return [];
   }
 
-  /**
-   * Merges host and iframe measurement IDs, removing duplicates.
-   * @param {string[]} hostIds
-   * @param {string[]} iframeIds
-   * @returns {string[]}
-   */
   function mergeMeasurementIds(hostIds, iframeIds) {
-    return [...new Set([...hostIds, ...iframeIds])];
+    var combined = [];
+
+    function addUnique(source) {
+      if (!source || !source.length) return;
+      for (var i = 0; i < source.length; i += 1) {
+        var id = source[i];
+        if (combined.indexOf(id) === -1) {
+          combined.push(id);
+        }
+      }
+    }
+
+    addUnique(hostIds);
+    addUnique(iframeIds);
+
+    return combined;
   }
 
   function haveGtagConfigs(ids) {
     if (!ids || ids.length === 0) return true;
-    const dataLayer = window.dataLayer || [];
+    var dataLayer = window.dataLayer || [];
     return ids.every(function (id) {
       return dataLayer.some(function (entry) {
         if (!entry || typeof entry !== "object") return false;
@@ -62,7 +71,7 @@
 
     var attempts = 0;
     var MAX_ATTEMPTS = 10;
-    var WARN_AFTER_ATTEMPTS = 10; // ~5 seconds when polling every 500ms
+    var WARN_AFTER_ATTEMPTS = 10;
     var POLL_INTERVAL_MS = 500;
 
     (function poll() {
@@ -92,10 +101,6 @@
     })();
   }
 
-  /**
-   * Handles messages posted by the ASC Event iframe.
-   * @param {MessageEvent} event
-   */
   function ensureAscDataLayer() {
     var asc = window.asc_datalayer;
     if (!asc || typeof asc !== "object") {
@@ -110,10 +115,41 @@
     return asc;
   }
 
-  function manageAscEvent(event) {
-    const { data } = event;
+  function dispatchDestinations(eventName, eventData) {
+    var payload = {};
+    var sourcePayload = eventData || {};
 
-    let payload;
+    for (var key in sourcePayload) {
+      if (Object.prototype.hasOwnProperty.call(sourcePayload, key)) {
+        payload[key] = sourcePayload[key];
+      }
+    }
+
+    if (typeof window.gtag === "function") {
+      window.gtag("event", eventName, payload);
+    }
+
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      event: "dl_" + eventName,
+      eventModel: payload
+    });
+
+    var asc = ensureAscDataLayer();
+    var ascPayload = { event: eventName };
+    for (var payloadKey in payload) {
+      if (Object.prototype.hasOwnProperty.call(payload, payloadKey)) {
+        ascPayload[payloadKey] = payload[payloadKey];
+      }
+    }
+
+    asc.events.push(ascPayload);
+  }
+
+  function manageAscEvent(event) {
+    var data = event.data;
+
+    var payload;
     try {
       payload = typeof data === "string" ? JSON.parse(data) : data;
     } catch (error) {
@@ -121,26 +157,33 @@
       return;
     }
 
-    if (!payload || !ALLOWED_INTERNAL_KEYS.includes(payload.internalKey)) {
+    if (
+      !payload ||
+      ALLOWED_INTERNAL_KEYS.indexOf(payload.internalKey) === -1
+    ) {
       return;
     }
 
-    const eventName = payload.event;
+    var eventName = payload.event;
     if (!eventName) return;
 
-    const eventData = {
-      ...(payload.eventModel || {})
-    };
+    var eventData = {};
+    var model = payload.eventModel || {};
+    for (var modelKey in model) {
+      if (Object.prototype.hasOwnProperty.call(model, modelKey)) {
+        eventData[modelKey] = model[modelKey];
+      }
+    }
 
-    const ascDataLayer = ensureAscDataLayer();
-    const hostMeasurementIds = parseMeasurementIds(
+    var ascDataLayer = ensureAscDataLayer();
+    var hostMeasurementIds = parseMeasurementIds(
       ascDataLayer.measurement_ids
     );
-    const iframeMeasurementIds = parseMeasurementIds(eventData.send_to);
-    const combinedMeasurementIds = mergeMeasurementIds(
+    var iframeMeasurementIds = parseMeasurementIds(eventData.send_to);
+    var combinedMeasurementIds = mergeMeasurementIds(
       hostMeasurementIds,
       iframeMeasurementIds
-    ); // Helps GA4 properties already on the site that want ASC Events
+    );
 
     var measurementIdsToCheck = combinedMeasurementIds;
 
@@ -152,20 +195,7 @@
     }
 
     waitForGtagConfig(measurementIdsToCheck, function () {
-      if (typeof window.gtag === "function") {
-        window.gtag("event", eventName, eventData);
-      }
-
-      window.dataLayer = window.dataLayer || [];
-      window.dataLayer.push({
-        event: "dl_" + eventName,
-        eventModel: eventData
-      });
-
-      ascDataLayer.events.push({
-        event: eventName,
-        ...eventData
-      });
+      dispatchDestinations(eventName, eventData);
     });
   }
 

@@ -72,8 +72,9 @@
     }
 
     var attempts = 0;
-    var WARN_AFTER_ATTEMPTS = 40; // ~10 seconds when polling every 250ms
-    var POLL_INTERVAL_MS = 250;
+    var MAX_ATTEMPTS = 10;
+    var WARN_AFTER_ATTEMPTS = 10; // ~5 seconds when polling every 500ms
+    var POLL_INTERVAL_MS = 500;
 
     (function poll() {
       if (haveGtagConfigs(ids)) {
@@ -82,6 +83,15 @@
       }
 
       attempts += 1;
+      if (attempts >= MAX_ATTEMPTS) {
+        console.warn(
+          "ASC Event listener did not detect gtag('config', ...) after max attempts for",
+          ids
+        );
+        callback();
+        return;
+      }
+
       if (attempts === WARN_AFTER_ATTEMPTS) {
         console.warn(
           "ASC Event listener is still waiting for gtag('config', ...) to run for",
@@ -97,6 +107,20 @@
    * Handles messages posted by the ASC Event iframe.
    * @param {MessageEvent} event
    */
+  function ensureAscDataLayer() {
+    var asc = window.asc_datalayer;
+    if (!asc || typeof asc !== "object") {
+      asc = { events: [] };
+      window.asc_datalayer = asc;
+    }
+
+    if (!Array.isArray(asc.events)) {
+      asc.events = [];
+    }
+
+    return asc;
+  }
+
   function manageAscEvent(event) {
     const { data, origin } = event;
 
@@ -117,9 +141,9 @@
       ...((payload && payload.eventModel) || {})
     };
 
-    window.asc_datalayer = window.asc_datalayer || [];
+    const ascDataLayer = ensureAscDataLayer();
     const hostMeasurementIds = parseMeasurementIds(
-      window.asc_datalayer.measurement_ids
+      ascDataLayer.measurement_ids
     );
     const iframeMeasurementIds = parseMeasurementIds(eventData.send_to);
     const combinedMeasurementIds = mergeMeasurementIds(
@@ -143,11 +167,11 @@
 
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({
-        event: `dl_${eventName}`,
+        event: "dl_" + eventName,
         eventModel: eventData
       });
 
-      window.asc_datalayer.push({
+      ascDataLayer.events.push({
         event: eventName,
         ...eventData
       });
