@@ -2,7 +2,7 @@
 
 This folder contains a universal version of the ASC Event host listener that validates shared keys and forwards events to GA4, GTM's `dataLayer`, and the ASC data layer. A lightweight singleton guard prevents duplicate listeners when the snippet is injected multiple times (for example, through GTM).
 
-##What Does The Universal Listener Do? 
+## What Does The Universal Listener Do? 
 
 1. Insure's the listener is not loaded multiple times by defining `window.__ascUniversalListenerLoaded = true`
 2. Prevents events from coming through if they do not contain a specific Key (to allow providers to opt in/out of using it or potential versioning)
