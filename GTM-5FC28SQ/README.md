@@ -2,6 +2,17 @@
 
 This folder contains a universal version of the ASC Event host listener that validates shared keys and forwards events to GA4, GTM's `dataLayer`, and the ASC data layer. A lightweight singleton guard prevents duplicate listeners when the snippet is injected multiple times (for example, through GTM).
 
+##What Does The Universal Listener Do? 
+
+1. Insure's the listener is not loaded multiple times by defining `window.__ascUniversalListenerLoaded = true`
+2. Prevents events from coming through if they do not contain a specific Key (to allow providers to opt in/out of using it or potential versioning)
+3. Pull Measurement Ids from the `asc_datalayer.measurementIds` (ensuring it is a string of Ids and not an object)
+4. Joins Measurement Ids from the `asc_datalayer.measurementIds` with the Ids from the Message
+5. Sends the events from the postMessage into all ASC GA4s
+6. Ensures the GTAG has been defined before firing an event to prevent an event firing prior to the tag configuration to allow things like server-side tracking
+7. Posts the event into the `asc_datalayer.events` array
+8. Pushes the postMessage event into the `window.dataLayer` and pre-pends "dl_" to ensure events are trackable via GTM and unique to avoid duplicate events in GTM.
+
 ## Files
 - `universal-listener.js` – drop-in listener that accepts ASC Event payloads sent via `postMessage` and dispatches them directly through `gtag`, `dataLayer`, and `asc_datalayer`.
 
